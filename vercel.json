@@ -5,7 +5,8 @@
       "src": "app.py",
       "use": "@vercel/python",
       "config": {
-        "maxDuration": 60
+        "maxDuration": 60,
+        "includeFiles": "serviceAccountKey.json"
       }
     }
   ],
