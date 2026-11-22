@@ -460,12 +460,19 @@ def search():
         
         results_html += f'''
         <div style="background:#222; padding:15px; margin:10px 0; border-radius:5px; display:flex; justify-content:space-between; align-items:center;">
-            <span style="max-width:70%; font-size:14px;">{title_esc}</span>
-            <form action="/save" method="post" style="margin:0;">
-                <input type="hidden" name="title" value="{title_q}">
-                <input type="hidden" name="url" value="{enc_url}">
-                <button type="submit" style="padding:8px 15px; background:#28a745; color:#fff; border:none; border-radius:5px; cursor:pointer;">Save</button>
-            </form>
+            <span style="max-width:60%; font-size:14px;">{title_esc}</span>
+            
+            <div style="display:flex; gap:10px; align-items:center;">
+                <!-- 🔥 Naya Download/Play Button 🔥 -->
+                <a href="/play?url={enc_url}" target="_blank" style="padding:8px 15px; background:#ff9f43; color:#fff; border:none; border-radius:5px; text-decoration:none; font-size:14px; font-weight:bold; cursor:pointer;">Play</a>
+                
+                <!-- Purana Save Button -->
+                <form action="/save" method="post" style="margin:0;">
+                    <input type="hidden" name="title" value="{title_q}">
+                    <input type="hidden" name="url" value="{enc_url}">
+                    <button type="submit" style="padding:8px 15px; background:#28a745; color:#fff; border:none; border-radius:5px; cursor:pointer; font-weight:bold;">Save</button>
+                </form>
+            </div>
         </div>'''
         
     if not results_html:
