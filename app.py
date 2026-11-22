@@ -12,32 +12,17 @@ import requests as std_requests
 from flask import Flask, request, redirect, Response
 
 # ================= FIRESTORE SETUP =================
+import os
 import firebase_admin
 from firebase_admin import credentials, firestore
 
-FIREBASE_CREDENTIALS = json.loads(r"""
-{
-  "type": "service_account",
-  "project_id": "movies-d584a",
-  "private_key_id": "ae405f74f279a5350f2e162a59d4e51fe81233b8",
-  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC+bteStrCqzpMT\nUv5hHrp/fNMwu7RlJG+0B6EL3Xjx6oil2HDhlvqJWgkX+a8GKeMbLi9ymGJlieUp\njBWa7ZpDReby4O0fZ+I0ZWnxHJNFsK9UUyiH2/JPdk3xHZyLypLBVpRMlAT4Bk9U\nMjipA5cLYCWK5/qkwY7H3vcGmmadXcaACcGyuuqLEGTFRXB3D87h+FcKcdzpNZRi\nv8P3C8FWPFR7kDjZb5G4hvWBH3lQnCPMKkOSiIWrxxyZeUHRwUXdx6g9RciN7hOS\nlHADgvvonZDFruQ3q86mrUoffGBu+dk6CukgPbPs7sevBO6hmzUAsAEPK6ryzTO9\nVnecVg33AgMBAAECggEADMbJBdnl/n+/lGNUF9YE8zq/vJxLXSHVsMF2R6KDU8/F\nfUMJR8lmY8K7q3UgDgzPZOpzWn/o0iEvU9tHM87PM8ZD2XXH0vyYS6WmNvwQ0XMq\nQEEYDg1us3AfiJbRAvwDXp9dccnYj3904RRBgu1vu96mhixMP7OQzc4iyrmfOt2L\nKLwp8RNrdw/T3ovHSgqkG3PhlPbUCorwPuqthRvY0vMHcamAD9xpZgKzRyj7Qf8x\n2KXxI1twJZ7WvDu1rSYTExL2w6No9VZ+hzkWBWnv1nr93L+RW3buJORvzcl2qSeP\n6GXYQUr2nZ60gpVbLraXN5wX6GyRiaNuyAWXzXSGQQKBgQDjicUPwYoMN3CmYek9\nY0INUHTZ8n9+OOfpZiuKc7iLR6LUBXkmocdbU8V8CayjY/haltkQYTDVZukqksaA\nv3E0dIyIjEk1Xj6SdCwe1PqiiAOyAGVDq/DF1jsoYQb4va5o6BZ/MwdXrkycoSlQ\nwncuJGyjPQvt9Xa7J1/lgOsC4QKBgQDWQOO3hHhkJl5sVQ7kFMws7GXo/KzaY0cL\nAJnJ20bBc4GMw5YRf2qoQBIJSChYkyCBbidZ5IPKhgSGi4iqUK65I3q2Ct7Y5GD4\nqfymvQDLd5vFhIUufOzz+zRvSDH1XiQxni5dSNcdgZHM5KUTplRptXgzlH905jm+\nTwcOwa4D1wKBgQDIlfVA1I8MAfuu0XW6Bjx+XEUGtT4rWaMoIEeWADnZnscuPbz1\nj3ydSBY6KJUmXMTdp0mnpOZV2ikGvOl9KkdzxKL25STMhU6H8R3L+FkS2vDXBH5A\nz9yrqxXvnMl2klCkbqUWcTex1hf3pCM17Jj/9mBG71QK7G9EwYtKWQHUQQKBgEPe\nWkQP2nMfFFoMt6LYU7UHTWD4aWjkeeSqVAz1QPyWsjr82dTBH/AcG5qFGQK12F4n\nnp+DG5xTx6s3GBubYz2SV5TC7MSX03/xmO7YgB/zy4xN5kJLoGPI91so62pmX+C3\n0sgKAtp96MmWxBPtZF/39BOivp0xMKlwLzQldhIRAoGAGHqS/sv2gynAJmdad21Q\nvaw9VcjD65PqH+wYoU+Ooy8HUkbruok3yx6TC/KMkmpQK1q0Q+p4bQpHnWj6o/L/\nS7H2ep1Xgi5beWVFmLmC7lp93NLstoS2Xo0ej7q3JxxXkmspzhiZGPuThtTjXjru\nt5/dVEorWabeUNsAzg3cSo8=\n-----END PRIVATE KEY-----\n",
-  "client_email": "firebase-adminsdk-fbsvc@movies-d584a.iam.gserviceaccount.com",
-  "client_id": "112631696952135951671",
-  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-  "token_uri": "https://oauth2.googleapis.com/token",
-  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-fbsvc%40movies-d584a.iam.gserviceaccount.com",
-  "universe_domain": "googleapis.com"
-}
-""")
+# File-based load: copy-paste corruption ka khatra ZERO
+KEY_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "serviceAccountKey.json")
 
-# ================= FIRESTORE INIT (FIXED) =================
 try:
-    # Warm container reuse pe app already exist karta hai -> koi action nahi
     firebase_admin.get_app()
 except ValueError:
-    # Cold start pe app nahi hota -> initialize karo
-    firebase_admin.initialize_app(credentials.Certificate(FIREBASE_CREDENTIALS))
+    firebase_admin.initialize_app(credentials.Certificate(KEY_PATH))
 
 db = firestore.client()
 COLLECTION = "saved_movies"
