@@ -4,6 +4,7 @@ import json
 import base64
 import urllib.parse
 import html as html_lib
+import os
 from datetime import date
 from urllib.parse import quote, unquote, urlsplit
 from bs4 import BeautifulSoup
@@ -17,14 +18,21 @@ from firebase_admin import credentials, firestore
 
 app = Flask(__name__)
 
-# 🔥 FIREBASE SETUP (Reading from JSON file) 🔥
+# 🔥 FIREBASE SETUP (Environment Variable se load karein) 🔥
 if not firebase_admin._apps:
-    # Vercel build me file root directory me hoti hai
-    cred = credentials.Certificate("serviceAccountKey.json") 
-    firebase_admin.initialize_app(cred)
+    firebase_json = os.environ.get("FIREBASE_SERVICE_ACCOUNT_KEY")
+    if firebase_json:
+        cred_dict = json.loads(firebase_json)
+        if "private_key" in cred_dict:
+            cred_dict["private_key"] = cred_dict["private_key"].replace('\\n', '\n')
+        cred = credentials.Certificate(cred_dict)
+        firebase_admin.initialize_app(cred)
+    else:
+        print("[-] FIREBASE_SERVICE_ACCOUNT_KEY environment variable nahi mila!")
 
 # Initialize Firestore Database
 db = firestore.client()
+# ----------------------------
 # --------------------------
 
 BASE_URL = "https://new15.hdhub4u.cl"
