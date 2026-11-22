@@ -31,15 +31,17 @@ FIREBASE_CREDENTIALS = json.loads(r"""
 }
 """)
 
-# ✅ FIX: get_app() None return nahi karta, ValueError throw karta hai jab app na ho.
-# isliye try/except hi sahi pattern hai (serverless double-init safe).
+# ================= FIRESTORE INIT (FIXED) =================
 try:
+    # Warm container reuse pe app already exist karta hai -> koi action nahi
     firebase_admin.get_app()
 except ValueError:
+    # Cold start pe app nahi hota -> initialize karo
     firebase_admin.initialize_app(credentials.Certificate(FIREBASE_CREDENTIALS))
 
 db = firestore.client()
 COLLECTION = "saved_movies"
+# =========================================================
 
 def _doc_id(title):
     """Firestore doc ID mein '/' allowed nahi, isliye title ko URL-encode karke safe ID banate hain."""
