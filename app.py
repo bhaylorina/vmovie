@@ -4,7 +4,6 @@ import json
 import base64
 import urllib.parse
 import html as html_lib
-import os
 from datetime import date
 from urllib.parse import quote, unquote, urlsplit
 from bs4 import BeautifulSoup
@@ -12,43 +11,80 @@ from curl_cffi import requests as cffi_requests
 import requests as std_requests
 from flask import Flask, request, redirect, Response
 
-# 🔥 FIREBASE IMPORTS 🔥
+# ================= FIRESTORE SETUP (FRESH KEY) =================
+import os
 import firebase_admin
 from firebase_admin import credentials, firestore
 
-app = Flask(__name__)
+FIREBASE_CREDENTIALS = json.loads(r"""
+{
+  "type": "service_account",
+  "project_id": "movies-d584a",
+  "private_key_id": "4af658747187667625a3a1a242ee7bdb1851fde1",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC3w77DZLDqCYI/\nBxs5HC7bvW7+TNCoFwvuPjQOMEuckbYB4KvJEl9ti1NTO+Ap3leOZJJfSX2B0hdY\nkWfUvRfk9aPMNI52kzs3fuocxilSV5Tgoqd2aELxZwt/v60xWzz/GBf6kS8UWvUs\nzOKyO4n+z81sSJJRcpJRrFnd7l4KB0etjTxuTJ6x50FK/yPt9i/ZUP/25jL1LGhc\ndK98SdL1PfQ6rUt/SeoJXCXe5VOcc37jHsz6hC8MpCmKQzGi+0bC47FfjN0gfrcG\nrfNfEW1S1RJX09+thLbbw0DuDgmPXxxfSVKAdMLslKVK6JQkARXfBeoWDGFvZA7q\nGvEVEUoRAgMBAAECggEAAThvugpVmLO2lhVFppqtLUvazGtq0dSrDPcPu+YlwmjC\n9/MKwQgonXQyBY1Ecnt3SqRHK8y/WN7Bh3PcAxXy9f6zWFKXpCws2ctmAPqGTdKH\nil5UXKrKU/9aVqMubCYlYrpz8s0eEwjKtIPvaXBSEFFXFYQZFYY2l2FVCLwKh0VU\nPILwo5afs7oaXbafZLY/mQ1/1uyPeQp900PO/yOAMb54rhwRNNKJ9NA+baLr3dBh\n7vFxC6L2bp+BG97jUwfr/5GfwMGoWmgy7ExknH2HyG8TYgXzTsHcaxutiam9GoFD\nu1TZdKQVa8MC/YVGcUQht4A1+fl4n0jv1HHgsYsTyQKBgQDzyzImgTMlg+TNF4wI\ni+/DXVOzU67LQw4fBgtZZBt+jcd5unLhZNansfAf06HMBOktm9DHy0N/zCkflCUN\nbd5+17cyk/pnF32RKh8yRmhMm254raEgOzZK/FITwkFiF2E/++JtaV6zL/8uF6AC\nSN1G7y8xSnSPhk6a2PfKwLSKVQKBgQDA9yG0iu11RCdGXs08upxh08pfCk0Df3No\nSa2vXXFIJkRZ/RxZM2aVYFlxj2J6PylLmz6FX/CzBkXH+6mbcjdYvpkSEvzhPORi\nMZ5ycOGSoEdG+HMt45jGAPtTU1isx30BGb7Q5L1tWn/L0EpGl5U50IEGTiQuZQjS\nGWISjpB0zQKBgHY8Dc5uyodfOA/fY6Khe16cXIOUCim6E5coL0jjLBJsYFnA+wYl\nCZW6zmIhGU8A8rWT4+WBxvKr6SXPi0jACDAsHkUBT2fAFL3aV9biHqNInoMYchRX\nozUqugOrKlqQTDHjzySQ/cSZeoC4JHn3LJnCVnjpSy5wTJ78qvBCFU0hAoGBAKIl\niB8LtqmZUV9ifhePv6S8sQrXvws3Z6S0dMwtOumjrj/n3pBeDs9qnP49vER5Gpw7\noXe1vK7SkISRRl4mxbc+waVcaz5hSo/wnfIQRJxPLlXGpBJlc5S+cnH8UUEuiC4K\nkjs6WqqvJz/+kMtsyKpCOIkx1Flf8N+LEMwDHAPpAoGALq2cOAV94htpeJbrDLb6\nrtgOodLlWHjR/Aa/qLNJ0wPerRUW7iWEK0P7Jbs45jJ9WhEvIGL+lFPQrJvDGKOR\nY5D2OUK0RUr3+aaM+eA0yU2MuR0b2L8Mc9N2NDVLxlUJAHsz2znm4qHb9RD7z0h6\nxaYjJS8S62bRKZ4D3iSz0Mg=\n-----END PRIVATE KEY-----\n",
+  "client_email": "firebase-adminsdk-fbsvc@movies-d584a.iam.gserviceaccount.com",
+  "client_id": "112631696952135951671",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-fbsvc%40movies-d584a.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}
+""")
 
-# 🔥 FIREBASE SETUP (Environment Variable se load karein) 🔥
-if not firebase_admin._apps:
-    firebase_json = os.environ.get("FIREBASE_SERVICE_ACCOUNT_KEY")
-    if firebase_json:
-        cred_dict = json.loads(firebase_json)
-        if "private_key" in cred_dict:
-            cred_dict["private_key"] = cred_dict["private_key"].replace('\\n', '\n')
-        cred = credentials.Certificate(cred_dict)
-        firebase_admin.initialize_app(cred)
-    else:
-        print("[-] FIREBASE_SERVICE_ACCOUNT_KEY environment variable nahi mila!")
+try:
+    firebase_admin.get_app()
+except ValueError:
+    firebase_admin.initialize_app(credentials.Certificate(FIREBASE_CREDENTIALS))
 
-# Initialize Firestore Database
 db = firestore.client()
-# ----------------------------
-# --------------------------
+COLLECTION = "saved_movies"
+
+def _doc_id(title):
+    return quote(title, safe="")
+
+def fs_get_all():
+    result = {}
+    try:
+        for doc in db.collection(COLLECTION).stream():
+            d = doc.to_dict() or {}
+            t = d.get("title", "")
+            if t:
+                result[t] = d
+    except Exception as e:
+        print(f"[-] Firestore read error: {e}")
+    return result
+
+def fs_set(title, data):
+    try:
+        db.collection(COLLECTION).document(_doc_id(title)).set(data)
+        print(f"[+] Firestore me '{title}' save ho gayi!")
+    except Exception as e:
+        print(f"[-] Firestore save error: {e}")
+
+def fs_delete(title):
+    try:
+        db.collection(COLLECTION).document(_doc_id(title)).delete()
+        print(f"[+] Firestore se '{title}' delete ho gayi!")
+    except Exception as e:
+        print(f"[-] Firestore delete error: {e}")
+# ================= FIRESTORE SETUP END =================
+
+
+app = Flask(__name__)
 
 BASE_URL = "https://new15.hdhub4u.cl"
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
-# ⚡ OPTIMIZATION: Pre-compiled regex for faster execution in loops
+# ⚡ Pre-compiled regex for faster execution
 REGEX_PIXELDRAIN = re.compile(r'pixeldrain\.(?:dev|com)/u/([a-zA-Z0-9]+)')
 REGEX_R2 = re.compile(r'https?://[a-zA-Z0-9._-]+\.r2\.cloudflarestorage\.com/[^\s"\'<>]+')
 REGEX_BASE64_ATOB = re.compile(r"atob\(['\"]([^'\"]+)['\"]\)")
 REGEX_BASE64_LONG = re.compile(r'[a-zA-Z0-9+/]{20,}={0,2}')
 REGEX_GAME_DRIVE = re.compile(r'https?://(?:pixeldra\.in|pixeldrain\.com|pixeldrain\.net|pixeldrain\.dev)/(?:u|api/file|l)/([^?\s]+)')
 
-# 🔄 OPTIMIZATION: Explicit 0 cache TTL for immediate save/delete updates in playlist
 CACHE_TTL = 0 
 
-# बेस स्क्रिप्ट का स्क्रैपिंग सेशन
 session = cffi_requests.Session(impersonate="chrome110")
 session.headers.update({
     'User-Agent': UA,
@@ -56,7 +92,6 @@ session.headers.update({
     'Accept-Language': 'en-US,en;q=0.5',
 })
 
-# सर्च API के लिए अलग सेशन और हेडर्स
 API_HEADERS = {
     "User-Agent": UA,
     "Accept": "application/json, text/plain, */*",
@@ -67,39 +102,7 @@ API_HEADERS = {
 api_session = std_requests.Session()
 api_session.headers.update(API_HEADERS)
 
-# Simple In-Memory Cache
 cache_data = {"m3u": None, "timestamp": 0}
-saved_movies = {}
-
-# 🔥 FIRESTORE FUNCTIONS 🔥
-def load_saved_movies_from_cloud():
-    global saved_movies
-    try:
-        # 'config' collection aur 'saved_movies' document use kar rahe hain
-        doc_ref = db.collection('config').document('saved_movies')
-        doc = doc_ref.get()
-        if doc.exists:
-            data = doc.to_dict()
-            if isinstance(data, dict) and data:
-                saved_movies.update(data)
-                print("[+] Firebase se saved movies load ho gayi!")
-                return True
-        return False
-    except Exception as e:
-        print(f"[-] Firebase load error: {e}")
-        return False
-
-def sync_saved_movies_to_cloud():
-    try:
-        doc_ref = db.collection('config').document('saved_movies')
-        doc_ref.set(saved_movies)
-        print("[+] Saved movies Firebase me sync ho gayi!")
-        return True
-    except Exception as e:
-        print(f"[-] Firebase sync error: {e}")
-        return False
-# ----------------------------
-
 SAVED_DURATION = 3 * 24 * 60 * 60  # 3 दिन
 
 def rot13(s):
@@ -173,7 +176,6 @@ def extract_hubcloud_from_gadgets(url):
                     for a in hb_soup.find_all('a'):
                         text = a.get_text(strip=True).lower()
                         href = str(a.get('href', '')).lower()
-                        
                         if 'hubcloud' in text or 'hubcloud' in href:
                             return a['href']
                         if 'hubdrive' in text or 'hubdrive' in href:
@@ -203,17 +205,13 @@ def extract_hubcloud_from_hubdrive(url):
 def convert_pixeldrain_to_direct(url):
     if not url:
         return None
-        
     url = url.replace('&amp;', '&')
-    
-    # ⚡ OPTIMIZATION: Using pre-compiled regex
     match = REGEX_GAME_DRIVE.search(url)
     if match:
         file_id = match.group(1)
         direct_url = f"https://cdn.pixeldrain.eu.cc/{file_id}"
         print(f"      [🔄] Converted PixelDrain (GameDrive): {direct_url}")
         return direct_url
-        
     return url
 
 def process_hubcloud(hubcloud_url):
@@ -246,7 +244,6 @@ def process_hubcloud(hubcloud_url):
         html_text = gen_resp.text.replace('&amp;', '&').replace('\\u0026', '&').replace('\u0026', '&')
         gen_soup = BeautifulSoup(html_text, 'html.parser')
         
-        # FSL Server Priority
         for a in gen_soup.find_all('a'):
             text = a.get_text(strip=True).lower()
             href = a.get('href', '')
@@ -255,7 +252,6 @@ def process_hubcloud(hubcloud_url):
                     print("--> SUCCESS: FSL Link Found!")
                     return href
         
-        # ⚡ OPTIMIZATION: Using pre-compiled regex for R2 and PixelDrain
         all_r2_links = REGEX_R2.findall(html_text)
         valid_r2_links = [l for l in all_r2_links if 't3apac' not in l.lower() and 'fslv2' not in l.lower()]
         
@@ -318,32 +314,22 @@ def process_hubcloud(hubcloud_url):
     return None
 
 
-# ================= सर्च और सेव फंक्शन्स =================
+# ================= SEARCH & SAVE FUNCTIONS =================
 
 def get_valid_saved():
-    global saved_movies
     now = time.time()
+    all_movies = fs_get_all()
     valid = {}
-    
-    if not saved_movies:
-        load_saved_movies_from_cloud()
 
-    changed = False
-
-    for title, data in list(saved_movies.items()):
-        if isinstance(data, dict):
+    for title, data in all_movies.items():
+        if isinstance(data, dict) and "saved_at" in data:
             if now - data.get("saved_at", 0) <= SAVED_DURATION:
                 valid[title] = data
             else:
-                del saved_movies[title]
-                changed = True
+                fs_delete(title)  # Sirf expired movie delete, baaki safe
         else:
-            del saved_movies[title]
-            changed = True
-            
-    if changed:
-        sync_saved_movies_to_cloud()
-        
+            fs_delete(title)      # Invalid entry clean up
+
     return valid
 
 def fix_movie_url(url):
@@ -427,10 +413,8 @@ def home():
             <input type="text" name="q" placeholder="Search movie..." required style="padding:10px; width:70%; max-width:300px; border-radius:5px; border:none;">
             <button type="submit" style="padding:10px 20px; background:#007bff; color:#fff; border:none; border-radius:5px;">Search</button>
         </form>
-        
         <h3 style="margin-top:40px;">⭐ Saved Movies</h3>
         {saved_html}
-        
         <br><br>
         <a href="/playlist.m3u" style="color:#28a745; font-weight:bold; font-size:18px; text-decoration:none;">📥 Download M3U Playlist</a>
     </body>
@@ -478,19 +462,13 @@ def search():
 
 @app.route('/save', methods=['POST'])
 def save():
-    global saved_movies
     title = unquote(request.form.get("title", "")).strip()
     enc_url = request.form.get("url", "").strip()
     
     if title and enc_url:
-        # 🔥 SAFETY CHECK: Load from cloud before saving to prevent overwrite
-        if not saved_movies:
-            load_saved_movies_from_cloud()
-            
         try:
             movie_url = base64.urlsafe_b64decode(enc_url.encode()).decode()
-            saved_movies[title] = {"title": title, "url": movie_url, "saved_at": time.time()}
-            sync_saved_movies_to_cloud() 
+            fs_set(title, {"title": title, "url": movie_url, "saved_at": time.time()})
         except Exception as e:
             print(f"Save error: {e}")
             
@@ -498,15 +476,8 @@ def save():
 
 @app.route('/remove/<path:title>')
 def remove(title):
-    global saved_movies
     title = unquote(title)
-    
-    # 🔥 SAFETY CHECK: Load from cloud before removing to prevent overwrite
-    if not saved_movies:
-        load_saved_movies_from_cloud()
-        
-    saved_movies.pop(title, None)
-    sync_saved_movies_to_cloud()
+    fs_delete(title)
     return redirect("/")
 
 @app.route('/playlist.m3u')
@@ -522,7 +493,6 @@ def get_playlist():
         return Response(cache_data["m3u"] + saved_part, mimetype='audio/x-mpegurl')
 
     categories = [("bollywood-movies", "Bollywood Movies"), ("south-hindi-movies", "South Hindi Movies")]
-    
     m3u = "#EXTM3U\n"
     seen_urls = set() 
     
@@ -606,7 +576,7 @@ def play_movie():
                 if final_link:
                     return redirect(final_link, code=302)
                 
-        return "Failed to extract final HubCloud link. (Check Vercel Logs for details)", 500
+        return "Failed to extract final HubCloud link. (Check Render Logs for details)", 500
         
     except Exception as e:
         import traceback
