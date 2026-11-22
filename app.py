@@ -15,8 +15,6 @@ from flask import Flask, request, redirect, Response
 import firebase_admin
 from firebase_admin import credentials, firestore
 
-# 🔥 Service account (hardcoded as requested - private repo)
-# Raw string (r""") isliye kyunki private key ke andar \n ko JSON parser ko sahi se milna chahiye
 FIREBASE_CREDENTIALS = json.loads(r"""
 {
   "type": "service_account",
@@ -33,8 +31,11 @@ FIREBASE_CREDENTIALS = json.loads(r"""
 }
 """)
 
-# Vercel container reuse kar sakta hai, isliye double-init se bacho
-if not firebase_admin.get_app():
+# ✅ FIX: get_app() None return nahi karta, ValueError throw karta hai jab app na ho.
+# isliye try/except hi sahi pattern hai (serverless double-init safe).
+try:
+    firebase_admin.get_app()
+except ValueError:
     firebase_admin.initialize_app(credentials.Certificate(FIREBASE_CREDENTIALS))
 
 db = firestore.client()
@@ -493,7 +494,7 @@ def save():
     if title and enc_url:
         try:
             movie_url = base64.urlsafe_b64decode(enc_url.encode()).decode()
-            # 🔥 Sirf 1 movie ka document likhte hain - baaki 11 movies ko koi nuksan nahi
+            # 🔥 Sirf 1 movie ka document likhte hain - baaki movies ko koi nuksan nahi
             fs_set(title, {"title": title, "url": movie_url, "saved_at": time.time()})
         except Exception as e:
             print(f"Save error: {e}")
