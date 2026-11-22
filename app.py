@@ -388,7 +388,7 @@ def home():
     <html>
     <head><meta name="viewport" content="width=device-width, initial-scale=1"><title>HDHub Scraper</title></head>
     <body style="font-family: Arial; background:#111; color:#fff; padding:20px; text-align:center;">
-        <h1>🎬 HDHub4u Scraper</h1>
+        <h1>🎬 RIPAL MOVIE SCRAPER</h1>
         <form action="/search" method="get">
             <input type="text" name="q" placeholder="Search movie..." required style="padding:10px; width:70%; max-width:300px; border-radius:5px; border:none;">
             <button type="submit" style="padding:10px 20px; background:#007bff; color:#fff; border:none; border-radius:5px;">Search</button>
