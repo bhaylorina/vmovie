@@ -12,12 +12,23 @@ import requests as std_requests
 from flask import Flask, request, redirect, Response
 
 app = Flask(__name__)
+
+# Kept hardcoded as requested for private repo / Vercel deployment
 JSONBIN_ID = "6b0131faac6210605a99192c"
 JSONBIN_KEY = "$2a$10$NXJcYdSiU7drll/yRzSEK.rnmvMBGAwWfLstiSisvpDfNijjjRGfu"
 
 BASE_URL = "https://new15.hdhub4u.cl"
-
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
+# ⚡ OPTIMIZATION: Pre-compiled regex for faster execution in loops
+REGEX_PIXELDRAIN = re.compile(r'pixeldrain\.(?:dev|com)/u/([a-zA-Z0-9]+)')
+REGEX_R2 = re.compile(r'https?://[a-zA-Z0-9._-]+\.r2\.cloudflarestorage\.com/[^\s"\'<>]+')
+REGEX_BASE64_ATOB = re.compile(r"atob\(['\"]([^'\"]+)['\"]\)")
+REGEX_BASE64_LONG = re.compile(r'[a-zA-Z0-9+/]{20,}={0,2}')
+REGEX_GAME_DRIVE = re.compile(r'https?://(?:pixeldra\.in|pixeldrain\.com|pixeldrain\.net|pixeldrain\.dev)/(?:u|api/file|l)/([^?\s]+)')
+
+# 🔄 OPTIMIZATION: Explicit 0 cache TTL for immediate save/delete updates in playlist
+CACHE_TTL = 0 
 
 # बेस स्क्रिप्ट का स्क्रैपिंग सेशन
 session = cffi_requests.Session(impersonate="chrome110")
@@ -41,6 +52,7 @@ api_session.headers.update(API_HEADERS)
 # Simple In-Memory Cache
 cache_data = {"m3u": None, "timestamp": 0}
 saved_movies = {}
+
 def load_saved_movies_from_cloud():
     global saved_movies
     try:
@@ -64,6 +76,7 @@ def sync_saved_movies_to_cloud():
         print("[+] Saved movies Cloud me sync ho gayi!")
     except Exception as e:
         print(f"[-] Cloud sync error: {e}")
+
 SAVED_DURATION = 3 * 24 * 60 * 60  # 3 दिन
 
 def rot13(s):
@@ -138,10 +151,8 @@ def extract_hubcloud_from_gadgets(url):
                         text = a.get_text(strip=True).lower()
                         href = str(a.get('href', '')).lower()
                         
-                        # Pehle Hubcloud dhundho
                         if 'hubcloud' in text or 'hubcloud' in href:
                             return a['href']
-                        # Agar nahi mila toh Hubdrive save karo
                         if 'hubdrive' in text or 'hubdrive' in href:
                             hubdrive_fallback = a['href']
                             
@@ -166,15 +177,14 @@ def extract_hubcloud_from_hubdrive(url):
         pass
     return None
 
-# 🛑 गेमड्राइव बायपास लॉजिक
 def convert_pixeldrain_to_direct(url):
     if not url:
         return None
         
     url = url.replace('&amp;', '&')
     
-    # GameDrive Bypass Regex
-    match = re.search(r'https?://(?:pixeldra\.in|pixeldrain\.com|pixeldrain\.net|pixeldrain\.dev)/(?:u|api/file|l)/([^?\s]+)', url)
+    # ⚡ OPTIMIZATION: Using pre-compiled regex
+    match = REGEX_GAME_DRIVE.search(url)
     if match:
         file_id = match.group(1)
         direct_url = f"https://cdn.pixeldrain.eu.cc/{file_id}"
@@ -222,7 +232,8 @@ def process_hubcloud(hubcloud_url):
                     print("--> SUCCESS: FSL Link Found!")
                     return href
         
-        all_r2_links = re.findall(r'https?://[a-zA-Z0-9._-]+\.r2\.cloudflarestorage\.com/[^\s"\'<>]+', html_text)
+        # ⚡ OPTIMIZATION: Using pre-compiled regex for R2 and PixelDrain
+        all_r2_links = REGEX_R2.findall(html_text)
         valid_r2_links = [l for l in all_r2_links if 't3apac' not in l.lower() and 'fslv2' not in l.lower()]
         
         if valid_r2_links:
@@ -232,28 +243,30 @@ def process_hubcloud(hubcloud_url):
                     return link
             return valid_r2_links[0]
 
-        # 🔥 PixelServer Fallback (Indentation FIXED HERE) 🔥
         found_links = set()
-        for match in re.finditer(r'pixeldrain\.(?:dev|com)/u/([a-zA-Z0-9]+)', html_text):
+        for match in REGEX_PIXELDRAIN.finditer(html_text):
             found_links.add(match.group(1))
+            
         for a in gen_soup.find_all('a'):
             for attr in ['data-url', 'data-link', 'data-href', 'data-src']:
                 val = a.get(attr)
                 if val:
-                    for m in re.finditer(r'pixeldrain\.(?:dev|com)/u/([a-zA-Z0-9]+)', val):
+                    for m in REGEX_PIXELDRAIN.finditer(val):
                         found_links.add(m.group(1))
-        for match in re.finditer(r'[a-zA-Z0-9+/]{20,}={0,2}', html_text):
+                        
+        for match in REGEX_BASE64_LONG.finditer(html_text):
             b64_str = match.group(0)
             try:
                 decoded = base64.b64decode(b64_str + "=" * ((4 - len(b64_str) % 4) % 4)).decode('utf-8')
-                for m in re.finditer(r'pixeldrain\.(?:dev|com)/u/([a-zA-Z0-9]+)', decoded):
+                for m in REGEX_PIXELDRAIN.finditer(decoded):
                     found_links.add(m.group(1))
             except: pass
-        for match in re.finditer(r"atob\(['\"]([^'\"]+)['\"]\)", html_text):
+            
+        for match in REGEX_BASE64_ATOB.finditer(html_text):
             b64_str = match.group(1)
             try:
                 decoded = base64.b64decode(b64_str + "=" * ((4 - len(b64_str) % 4) % 4)).decode('utf-8')
-                for m in re.finditer(r'pixeldrain\.(?:dev|com)/u/([a-zA-Z0-9]+)', decoded):
+                for m in REGEX_PIXELDRAIN.finditer(decoded):
                     found_links.add(m.group(1))
             except: pass
             
@@ -263,10 +276,10 @@ def process_hubcloud(hubcloud_url):
             for val in values:
                 try:
                     decoded = base64.b64decode(val + "=" * ((4 - len(val) % 4) % 4)).decode('utf-8')
-                    for m in re.finditer(r'pixeldrain\.(?:dev|com)/u/([a-zA-Z0-9]+)', decoded):
+                    for m in REGEX_PIXELDRAIN.finditer(decoded):
                         found_links.add(m.group(1))
                 except: pass
-                for m in re.finditer(r'pixeldrain\.(?:dev|com)/u/([a-zA-Z0-9]+)', val):
+                for m in REGEX_PIXELDRAIN.finditer(val):
                     found_links.add(m.group(1))
 
         real_ids = [id for id in found_links if id != 'negn6f']
@@ -289,28 +302,23 @@ def get_valid_saved():
     now = time.time()
     valid = {}
     
-    # 🔥 Cloud se data fetch karo agar memory khali hai 🔥
     if not saved_movies:
         load_saved_movies_from_cloud()
 
     for title, data in list(saved_movies.items()):
-        # Check karo ki data ek dictionary hai ya nahi (init: true ko ignore karne ke liye)
         if isinstance(data, dict):
             if now - data.get("saved_at", 0) <= SAVED_DURATION:
                 valid[title] = data
             else:
                 del saved_movies[title]
         else:
-            # Agar koi invalid data hai (jaise init: true), toh usko memory se delete kar do
             del saved_movies[title]
             
-    # Agar kuch invalid ya expire movies delete hui hain, toh cloud ko update kar do
     if len(valid) != len(saved_movies):
         sync_saved_movies_to_cloud()
         
     return valid
-        
-    return valid
+    # 🧹 OPTIMIZATION: Removed duplicate 'return valid' that was here
 
 def fix_movie_url(url):
     if not url: return ""
@@ -451,10 +459,7 @@ def save():
         try:
             movie_url = base64.urlsafe_b64decode(enc_url.encode()).decode()
             saved_movies[title] = {"title": title, "url": movie_url, "saved_at": time.time()}
-            
-            # 🔥 Cloud me save karo 🔥
             sync_saved_movies_to_cloud() 
-            
         except Exception as e:
             print(f"Save error: {e}")
             
@@ -464,16 +469,15 @@ def save():
 def remove(title):
     title = unquote(title)
     saved_movies.pop(title, None)
-    
-    # 🔥 Cloud se bhi delete karo 🔥
     sync_saved_movies_to_cloud()
-    
     return redirect("/")
 
 @app.route('/playlist.m3u')
 def get_playlist():
     global cache_data
-    if cache_data["m3u"] and (time.time() - cache_data["timestamp"] < 0):
+    
+    # 🔄 OPTIMIZATION: Explicit check. If CACHE_TTL is 0, it skips cache and always regenerates.
+    if CACHE_TTL > 0 and cache_data["m3u"] and (time.time() - cache_data["timestamp"] < CACHE_TTL):
         saved_part = ""
         for title, data in get_valid_saved().items():
             enc_url = base64.urlsafe_b64encode(data["url"].encode()).decode()
@@ -519,8 +523,10 @@ def get_playlist():
         m3u += f'#EXTINF:-1 group-title="⭐ Saved Movies",{title}\n'
         m3u += f'https://{request.host}/play?url={enc_url}\n'
     
-    cache_data["m3u"] = m3u
-    cache_data["timestamp"] = time.time()
+    # 🔄 OPTIMIZATION: Only save to cache if TTL is greater than 0
+    if CACHE_TTL > 0:
+        cache_data["m3u"] = m3u
+        cache_data["timestamp"] = time.time()
     
     return Response(m3u, mimetype='audio/x-mpegurl')
 
@@ -530,7 +536,6 @@ def play_movie():
     if not encoded_url:
         return "No URL provided", 400
 
-    # 🔥 FIX: Missing Base64 Padding ko wapas add karein 🔥
     encoded_url += "=" * ((4 - len(encoded_url) % 4) % 4)
 
     try:
@@ -557,7 +562,6 @@ def play_movie():
             hubcloud = best_link
 
         if hubcloud:
-            # Agar hblinks se hubdrive link aaya hai, toh usko convert karein
             if "hubdrive.blog" in hubcloud:
                 print(f"[*] Intermediate Hubdrive found: {hubcloud}")
                 hubcloud = extract_hubcloud_from_hubdrive(hubcloud)
@@ -576,4 +580,6 @@ def play_movie():
         return f"Error during extraction: {str(e)}\n{error_details}", 500
 
 if __name__ == '__main__':
+    # Perfect for local Termux testing. 
+    # For Vercel, you will use an api/index.py wrapper, but this remains harmless.
     app.run(host='0.0.0.0', port=10000, threaded=True)
