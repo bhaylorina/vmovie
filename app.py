@@ -2,36 +2,75 @@ import base64
 from datetime import date
 import html as html_lib
 import json
-import os
 import re
 import time
 import urllib.parse
 from urllib.parse import quote, unquote, urlsplit
 from bs4 import BeautifulSoup
 from curl_cffi import requests as cffi_requests
-import firebase_admin
-from firebase_admin import credentials, firestore
 from flask import Flask, Response, redirect, request
 import requests as std_requests
 
 app = Flask(__name__)
 
-# 🔥 SAFE FIREBASE SETUP FOR VERCEL (working fix, unchanged) 🔥
-if not firebase_admin._apps:
-    firebase_env = os.environ.get("FIREBASE_CREDENTIALS")
-    if firebase_env:
-        cred_dict = json.loads(firebase_env)
-        if "private_key" in cred_dict:
-            cred_dict["private_key"] = cred_dict["private_key"].replace("\\n", "\n")
-        cred = credentials.Certificate(cred_dict)
-        firebase_admin.initialize_app(cred)
-    else:
-        print("Error: FIREBASE_CREDENTIALS environment variable nahi mila!")
+# ================= RTDB REST SETUP (hardcoded, plain HTTP, no grpc) =================
+RTDB_URL = "https://movies-d584a-default-rtdb.firebaseio.com"
+RTDB_SECRET = "rs9zuVo5ndVNnyWjmgExnaCEbt91uLU56CKPvgF5"
+RTDB_PATH = "/saved_movies.json"
 
-# ✅ FIX #2: db sirf tab banao jab app init hua ho, warna poora site crash hota
-db = None
-if firebase_admin._apps:
-    db = firestore.client()
+rtdb_session = std_requests.Session()
+
+def _key(title):
+    # RTDB keys mein . $ # [ ] / allowed nahi; titles mein . / hote hain.
+    # Isliye base64-urlsafe key (sab chars safe), asli title value ke andar store hota hai.
+    return base64.urlsafe_b64encode(title.encode()).decode()
+
+def _rtdb_get():
+    """Poora map padho. null -> {}. Fail -> None (taaki write skip ho, wipe na ho)."""
+    try:
+        r = rtdb_session.get(RTDB_URL + RTDB_PATH, params={"auth": RTDB_SECRET}, timeout=20)
+        if r.status_code == 200:
+            data = r.json()
+            return data if isinstance(data, dict) else {}
+        print(f"[-] RTDB GET status {r.status_code}")
+        return None
+    except Exception as e:
+        print(f"[-] RTDB GET error: {e}")
+        return None
+
+def _rtdb_patch(payload):
+    """PATCH = server-side merge. Sirf diye gaye keys chhutta hai, baaki SAFE. null = delete."""
+    try:
+        r = rtdb_session.patch(RTDB_URL + RTDB_PATH, params={"auth": RTDB_SECRET}, json=payload, timeout=20)
+        if r.status_code == 200:
+            return True
+        print(f"[-] RTDB PATCH status {r.status_code}")
+        return False
+    except Exception as e:
+        print(f"[-] RTDB PATCH error (write skipped, data safe): {e}")
+        return False
+
+def _rtdb_delete(key):
+    """Sirf ek key delete. Baaki SAFE."""
+    try:
+        r = rtdb_session.delete(f"{RTDB_URL}/saved_movies/{key}.json", params={"auth": RTDB_SECRET}, timeout=20)
+        if r.status_code == 200:
+            return True
+        print(f"[-] RTDB DELETE status {r.status_code}")
+        return False
+    except Exception as e:
+        print(f"[-] RTDB DELETE error: {e}")
+        return False
+
+def load_saved_movies_from_cloud():
+    """Fresh read. Global ko replace karta hai taaki stale entries na rahein."""
+    global saved_movies
+    data = _rtdb_get()
+    if data is None:
+        return False
+    saved_movies = data
+    return True
+# ================= RTDB END =================
 
 BASE_URL = "https://new15.hdhub4u.cl"
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -64,53 +103,6 @@ api_session.headers.update(API_HEADERS)
 cache_data = {"m3u": None, "timestamp": 0}
 saved_movies = {}
 SAVED_DURATION = 3 * 24 * 60 * 60  # 3 दिन
-
-# ================= FIRESTORE (SAFE, NO-WIPE) =================
-def load_saved_movies_from_cloud():
-    """Fresh read. Global ko replace karta hai (merge nahi) taaki stale entries na rahein."""
-    global saved_movies
-    if db is None:
-        return False
-    try:
-        doc = db.collection('config').document('saved_movies').get()
-        if doc.exists:
-            data = doc.to_dict() or {}
-            saved_movies = data if isinstance(data, dict) else {}
-        else:
-            saved_movies = {}
-        return True
-    except Exception as e:
-        print(f"[-] Firebase load error: {e}")
-        return False
-
-def _update_movies(mutator):
-    """
-    ✅ FIX #1,#4,#5: atomic read-modify-write via transaction + plain set().
-    - plain set() = literal keys (dotted/slash titles safe, merge NAHI use kiya)
-    - transaction = race solved
-    - read fail hua toh exception -> write SKIP (wipe impossible)
-    mutator(dict) -> new dict
-    """
-    if db is None:
-        return False
-    ref = db.collection('config').document('saved_movies')
-
-    @firestore.transactional
-    def txn(transaction):
-        snap = ref.get(transaction=transaction)
-        data = snap.to_dict() if snap.exists else {}
-        if not isinstance(data, dict):
-            data = {}
-        new_data = mutator(dict(data))
-        transaction.set(ref, new_data)  # whole-doc set, literal keys (proven pattern)
-        return True
-
-    try:
-        return txn(db.transaction())
-    except Exception as e:
-        print(f"[-] Firebase update error (write skipped, data safe): {e}")
-        return False
-# ================= FIRESTORE END =================
 
 def rot13(s):
     res = []
@@ -301,23 +293,23 @@ def process_hubcloud(hubcloud_url):
 # ================= सर्च और सेव फंक्शन्स =================
 def get_valid_saved():
     global saved_movies
-    load_saved_movies_from_cloud()   # ✅ FIX #3: har baar fresh read (instant reflect)
+    load_saved_movies_from_cloud()   # har baar fresh read (instant reflect)
     now = time.time()
     valid = {}
     expired = []
-    for title, data in saved_movies.items():
-        if isinstance(data, dict) and "saved_at" in data:
+    for key, data in saved_movies.items():
+        if isinstance(data, dict) and "saved_at" in data and "title" in data:
             if now - data.get("saved_at", 0) <= SAVED_DURATION:
-                valid[title] = data
+                valid[data["title"]] = data   # display ke liye asli title
             else:
-                expired.append(title)
+                expired.append(key)
         else:
-            expired.append(title)
+            expired.append(key)
     if expired:
-        # ✅ FIX #4: expiry cleanup bhi atomic transaction se (full-set wipe nahi)
-        _update_movies(lambda d: {k: v for k, v in d.items() if k not in expired})
-        for t in expired:
-            saved_movies.pop(t, None)
+        # PATCH with null = sirf expired keys delete, baaki SAFE
+        _rtdb_patch({k: None for k in expired})
+        for k in expired:
+            saved_movies.pop(k, None)
     return valid
 
 def fix_movie_url(url):
@@ -382,7 +374,6 @@ def home():
     for title, data in get_valid_saved().items():
         title_esc = html_lib.escape(title)
         title_q = quote(title, safe="")
-        # ✅ FIX #6: remove ab POST form hai (GET prefetch/CSRF se delete nahi hoga)
         saved_html += f'''
         <div style="background:#222; padding:10px; margin:5px 0; border-radius:5px; display:flex; justify-content:space-between; align-items:center;">
             <span>{title_esc}</span>
@@ -456,10 +447,11 @@ def save():
         try:
             movie_url = base64.urlsafe_b64decode(enc_url.encode()).decode()
             entry = {"title": title, "url": movie_url, "saved_at": time.time()}
-            # ✅ FIX #1,#5: atomic add — sirf ye movie add hoti hai, baaki safe
-            ok = _update_movies(lambda d: {**d, title: entry})
+            key = _key(title)
+            # PATCH = sirf ye movie add/merge, baaki SAFE (no wipe, no read needed)
+            ok = _rtdb_patch({key: entry})
             if ok:
-                saved_movies[title] = entry
+                saved_movies[key] = entry
                 print(f"[+] '{title}' save ho gayi!")
             else:
                 print(f"[-] '{title}' save skip (DB unavailable), data safe")
@@ -472,10 +464,11 @@ def remove():
     global saved_movies
     title = unquote(request.form.get("title", "")).strip()
     if title:
-        # ✅ FIX #1,#5,#6: atomic single-movie delete
-        ok = _update_movies(lambda d: {k: v for k, v in d.items() if k != title})
+        key = _key(title)
+        # DELETE = sirf ye movie, baaki SAFE
+        ok = _rtdb_delete(key)
         if ok:
-            saved_movies.pop(title, None)
+            saved_movies.pop(key, None)
             print(f"[+] '{title}' delete ho gayi!")
     return redirect("/")
 
@@ -559,7 +552,6 @@ def play_movie():
                     return redirect(final_link, code=302)
         return "Failed to extract final HubCloud link. (Check Vercel Logs for details)", 500
     except Exception as e:
-        # ✅ FIX #7: traceback client ko leak nahi, sirf server log mein
         import traceback
         traceback.print_exc()
         return "Error during extraction. Check server logs for details.", 500
