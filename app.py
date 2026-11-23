@@ -551,13 +551,32 @@ def play_direct():
             if hubcloud:
                 final_link = process_hubcloud(hubcloud)
                 if final_link:
-                    # Agar Pixeldrain link hai toh Download Button wala page khulega (No 403 Error)
-                    if "cdn.pixeldrain.eu.cc/" in final_link:
-                        final_link = final_link.replace(
-                            "cdn.pixeldrain.eu.cc/", "pixeldrain.dev/u/"
-                        )
+                    # 1. Agar Pixeldrain (cdn.pixeldrain.eu.cc) link hai toh Download Button wala page khulega
+                    if "pixeldrain.eu.cc" in final_link:
+                        html = f"""
+                        <!DOCTYPE html>
+                        <html>
+                        <head>
+                            <meta name="viewport" content="width=device-width, initial-scale=1">
+                            <meta name="referrer" content="no-referrer">
+                            <title>Download Ready</title>
+                        </head>
+                        <body style="font-family:Arial; background:#111; color:#fff; text-align:center; padding:40px 20px;">
+                            <h2>🎬 File Ready to Download</h2>
+                            <p style="color:#888; font-size:13px; word-break:break-all; margin-bottom:30px;">{html_lib.escape(final_link)}</p>
+                            
+                            <a href="{html_lib.escape(final_link)}" rel="noreferrer noopener" 
+                               style="display:inline-block; padding:14px 30px; background:#28a745; color:#fff; text-decoration:none; border-radius:6px; font-weight:bold; font-size:18px;">
+                                📥 Download Now
+                            </a>
+                        </body>
+                        </html>
+                        """
+                        resp = Response(html, mimetype="text/html")
+                        resp.headers["Referrer-Policy"] = "no-referrer"
+                        return resp
 
-                    # Agar FSL ya R2 link hai toh bina page khule seedha download start hoga
+                    # 2. Agar FSL ya R2 link hai toh bina page khule seedha download start hoga
                     return redirect(final_link, code=302)
 
         return "Failed to extract final link from this specific URL.", 500
