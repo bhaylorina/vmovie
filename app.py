@@ -548,7 +548,22 @@ def play_direct():
             
             if hubcloud:
                 final_link = process_hubcloud(hubcloud)
-                if final_link: return redirect(final_link, code=302)
+                if final_link:
+    html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta name="referrer" content="no-referrer">
+        <script>
+            window.location.replace("{final_link}");
+        </script>
+    </head>
+    <body></body>
+    </html>
+    """
+    resp = Response(html, mimetype="text/html")
+    resp.headers["Referrer-Policy"] = "no-referrer"
+    return resp
                 
         return "Failed to extract final link from this specific URL.", 500
     except Exception as e:
