@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Manual Links</title>
+    <style>
+        body { font-family: Arial; background:#111; color:#fff; padding:20px; }
+        .link-item { background:#222; padding:15px; margin:10px 0; border-radius:5px; display:flex; justify-content:space-between; align-items:center; border-left: 4px solid #ff9f43; }
+        .btn-play { padding:8px 15px; background:#007bff; color:#fff; border-radius:5px; text-decoration:none; font-weight:bold; }
+        .btn-save { padding:8px 15px; background:#28a745; color:#fff; border:none; border-radius:5px; cursor:pointer; font-weight:bold; }
+    </style>
+</head>
+<body>
+    <a href="javascript:history.back()" style="color:#fff; text-decoration:none;">⬅ Back</a>
+    <h3>Links for: {{ title }}</h3>
+    {% if links %}
+        {% for link in links %}
+        <div class="link-item">
+            <span style="max-width:60%; font-size:14px; font-weight:bold; word-break:break-all;">{{ link.text }}</span>
+            <div style="display:flex; gap:10px;">
+                <a href="/play_direct?url={{ link.enc_url }}" target="_blank" class="btn-play">Play</a>
+                <form action="/save" method="post" style="margin:0;">
+                    <input type="hidden" name="title" value="{{ link.title_q }}">
+                    <input type="hidden" name="url" value="{{ link.enc_url }}">
+                    <button type="submit" class="btn-save">Save</button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <p style="color:#aaa;">No specific download links found.</p>
+    {% endif %}
+</body>
+</html>
