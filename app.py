@@ -155,6 +155,19 @@ def get_best_link(movie_soup, base_url):
     candidates.sort(key=sort_key)
     return candidates[0]['href']
 
+# 🔥 NEW: Function to extract all links for Manual Mode
+def get_all_links(movie_soup):
+    links = []
+    for a_tag in movie_soup.find_all('a', href=True):
+        href = a_tag['href']
+        text = a_tag.get_text(strip=True)
+        
+        # Only keep links from known download hosts
+        if any(domain in href for domain in ["greenmotors", "gadgetsweb", "hubdrive", "hubcdn", "hubcloud"]):
+            if text and len(text) > 2 and "WATCH" not in text.upper() and "PLAYER" not in text.upper():
+                links.append({"text": text, "url": href})
+    return links
+
 def extract_hubcloud_from_gadgets(url):
     try:
         resp = session.get(url, timeout=15)
@@ -383,6 +396,8 @@ def home():
             </form>
         </div>'''
     if not saved_html: saved_html = "<p style='color:#888;'>No saved movies yet.</p>"
+    
+    # 🔥 NAYA: Dropdown add kiya gaya hai
     return f"""
     <!DOCTYPE html>
     <html>
@@ -390,8 +405,12 @@ def home():
     <body style="font-family: Arial; background:#111; color:#fff; padding:20px; text-align:center;">
         <h1>🎬 RIPAL MOVIE SCRAPER</h1>
         <form action="/search" method="get">
-            <input type="text" name="q" placeholder="Search movie..." required style="padding:10px; width:70%; max-width:300px; border-radius:5px; border:none;">
-            <button type="submit" style="padding:10px 20px; background:#007bff; color:#fff; border:none; border-radius:5px;">Search</button>
+            <input type="text" name="q" placeholder="Search movie..." required style="padding:10px; width:60%; max-width:300px; border-radius:5px; border:none;">
+            <select name="mode" style="padding:11px; border-radius:5px; background:#fff; font-weight:bold; border:none; margin-left:5px;">
+                <option value="auto">Auto (Best 1080p)</option>
+                <option value="manual">Manual (All Links)</option>
+            </select>
+            <button type="submit" style="padding:10px 20px; background:#007bff; color:#fff; border:none; border-radius:5px; margin-top:10px;">Search</button>
         </form>
         <h3 style="margin-top:40px;">⭐ Saved Movies</h3>
         {saved_html}
@@ -404,17 +423,20 @@ def home():
 @app.route('/search')
 def search():
     query = request.args.get("q", "").strip()
+    mode = request.args.get("mode", "auto") # 🔥 NAYA: Mode fetch
     if not query: return redirect("/")
     results = typesense_search(query)
     if not results: results = wp_search(query)
     results_html = ""
+    
     for movie in results:
         title_esc = html_lib.escape(movie["title"])
         enc_url = base64.urlsafe_b64encode(movie["url"].encode()).decode()
         title_q = quote(movie["title"], safe="")
-        results_html += f'''
-        <div style="background:#222; padding:15px; margin:10px 0; border-radius:5px; display:flex; justify-content:space-between; align-items:center;">
-            <span style="max-width:60%; font-size:14px;">{title_esc}</span>
+        
+        # 🔥 NAYA: Mode ke hisaab se button change
+        if mode == "auto":
+            buttons_html = f'''
             <div style="display:flex; gap:10px; align-items:center;">
                 <a href="/play?url={enc_url}" target="_blank" style="padding:8px 15px; background:#ff9f43; color:#fff; border:none; border-radius:5px; text-decoration:none; font-size:14px; font-weight:bold; cursor:pointer;">Play</a>
                 <form action="/save" method="post" style="margin:0;">
@@ -422,14 +444,23 @@ def search():
                     <input type="hidden" name="url" value="{enc_url}">
                     <button type="submit" style="padding:8px 15px; background:#28a745; color:#fff; border:none; border-radius:5px; cursor:pointer; font-weight:bold;">Save</button>
                 </form>
-            </div>
+            </div>'''
+        else:
+            buttons_html = f'''
+            <a href="/manual?url={enc_url}&title={title_q}" style="padding:8px 15px; background:#ff9f43; color:#fff; border:none; border-radius:5px; text-decoration:none; font-size:14px; font-weight:bold;">Get Links</a>'''
+            
+        results_html += f'''
+        <div style="background:#222; padding:15px; margin:10px 0; border-radius:5px; display:flex; justify-content:space-between; align-items:center;">
+            <span style="max-width:60%; font-size:14px;">{title_esc}</span>
+            {buttons_html}
         </div>'''
+        
     if not results_html:
         results_html = "<p style='color:#aaa;'>No movies found. Try different spelling.</p>"
     return f"""
     <!DOCTYPE html>
     <html>
-    <head><meta name="viewport" content="width=device-width, initial-scale=1"><title>Search Results</title></head>
+    <head><meta name="viewport" content="width=device-width, initial-scale=1"><title>Search Results ({mode.capitalize()})</title></head>
     <body style="font-family: Arial; background:#111; color:#fff; padding:20px;">
         <a href="/" style="color:#fff; text-decoration:none;">⬅ Back</a>
         <h3>Results for: "{html_lib.escape(query)}"</h3>
@@ -437,6 +468,93 @@ def search():
     </body>
     </html>
     """
+
+# 🔥 NAYA ROUTE: Manual list dikhane ke liye
+@app.route('/manual')
+def manual_links():
+    encoded_url = request.args.get('url')
+    title = unquote(request.args.get('title', 'Movie Links'))
+    if not encoded_url: return "No URL provided", 400
+
+    encoded_url += "=" * ((4 - len(encoded_url) % 4) % 4)
+    try:
+        movie_url = base64.urlsafe_b64decode(encoded_url.encode()).decode()
+    except Exception as e: return f"Invalid URL: {e}", 400
+
+    try:
+        resp = session.get(movie_url, timeout=15)
+        soup = BeautifulSoup(resp.text, 'html.parser')
+        links = get_all_links(soup)
+
+        links_html = ""
+        if links:
+            for link in links:
+                enc_link_url = base64.urlsafe_b64encode(link['url'].encode()).decode()
+                
+                # Title combine karke save karenge taaki Auto wale se mix na ho
+                full_save_title = f"{title} - {link['text']}"
+                link_title_q = quote(full_save_title, safe="")
+
+                links_html += f'''
+                <div style="background:#222; padding:15px; margin:10px 0; border-radius:5px; display:flex; justify-content:space-between; align-items:center; border-left: 4px solid #ff9f43;">
+                    <span style="max-width:60%; font-size:14px; font-weight:bold; word-break:break-all;">{html_lib.escape(link['text'])}</span>
+                    <div style="display:flex; gap:10px;">
+                        <a href="/play_direct?url={enc_link_url}" target="_blank" style="padding:8px 15px; background:#007bff; color:#fff; border-radius:5px; text-decoration:none; font-weight:bold; font-size:14px;">Play</a>
+                        <form action="/save" method="post" style="margin:0;">
+                            <input type="hidden" name="title" value="{link_title_q}">
+                            <input type="hidden" name="url" value="{enc_link_url}">
+                            <button type="submit" style="padding:8px 15px; background:#28a745; color:#fff; border:none; border-radius:5px; cursor:pointer; font-weight:bold; font-size:14px;">Save</button>
+                        </form>
+                    </div>
+                </div>'''
+        else:
+            links_html = "<p style='color:#aaa;'>No specific download links found on this page.</p>"
+
+        return f"""
+        <!DOCTYPE html>
+        <html>
+        <head><meta name="viewport" content="width=device-width, initial-scale=1"><title>Manual Links</title></head>
+        <body style="font-family: Arial; background:#111; color:#fff; padding:20px;">
+            <a href="javascript:history.back()" style="color:#fff; text-decoration:none;">⬅ Back</a>
+            <h3>Links for: {html_lib.escape(title)}</h3>
+            {links_html}
+        </body>
+        </html>
+        """
+    except Exception as e:
+        return f"Error extracting links: {e}", 500
+
+# 🔥 NAYA ROUTE: Manual wale link ko directly play karne ke liye (bypassing get_best_link)
+@app.route('/play_direct')
+def play_direct():
+    encoded_url = request.args.get('url')
+    if not encoded_url: return "No URL provided", 400
+
+    encoded_url += "=" * ((4 - len(encoded_url) % 4) % 4)
+    try:
+        target_url = base64.urlsafe_b64decode(encoded_url.encode()).decode()
+    except Exception as e: return f"Invalid URL: {e}", 400
+
+    try:
+        if "greenmotors" in target_url or "gadgetsweb" in target_url:
+            hubcloud = extract_hubcloud_from_gadgets(target_url)
+        elif "hubdrive.blog" in target_url:
+            hubcloud = extract_hubcloud_from_hubdrive(target_url)
+        else:
+            hubcloud = target_url
+
+        if hubcloud:
+            if "hubdrive.blog" in hubcloud:
+                hubcloud = extract_hubcloud_from_hubdrive(hubcloud)
+            
+            if hubcloud:
+                final_link = process_hubcloud(hubcloud)
+                if final_link: return redirect(final_link, code=302)
+                
+        return "Failed to extract final link from this specific URL.", 500
+    except Exception as e:
+        import traceback
+        return f"Error during extraction: {str(e)}\n{traceback.format_exc()}", 500
 
 @app.route('/save', methods=['POST'])
 def save():
