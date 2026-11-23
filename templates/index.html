@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>HDHub Scraper</title>
+    <style>
+        body { font-family: Arial; background:#111; color:#fff; padding:20px; text-align:center; }
+        .save-item { background:#222; padding:10px; margin:5px 0; border-radius:5px; display:flex; justify-content:space-between; align-items:center; }
+        .btn-remove { background:none; border:none; color:red; cursor:pointer; }
+        input, select { padding:10px; border-radius:5px; border:none; }
+        .btn-search { padding:10px 20px; background:#007bff; color:#fff; border:none; border-radius:5px; cursor:pointer; }
+    </style>
+</head>
+<body>
+    <h1>🎬 RIPAL MOVIE SCRAPER</h1>
+    <form action="/search" method="get">
+        <input type="text" name="q" placeholder="Search movie..." required style="width:60%; max-width:300px;">
+        <select name="mode">
+            <option value="auto">Auto (Best 1080p)</option>
+            <option value="manual">Manual (All Links)</option>
+        </select>
+        <br><br>
+        <button type="submit" class="btn-search">Search</button>
+    </form>
+    <h3 style="margin-top:40px;">⭐ Saved Movies</h3>
+    {% if saved_movies %}
+        {% for movie in saved_movies %}
+        <div class="save-item">
+            <span>{{ movie.title }}</span>
+            <form action="/remove" method="post" style="margin:0;">
+                <input type="hidden" name="title" value="{{ movie.title_q }}">
+                <button type="submit" class="btn-remove">Remove</button>
+            </form>
+        </div>
+        {% endfor %}
+    {% else %}
+        <p style="color:#888;">No saved movies yet.</p>
+    {% endif %}
+    <br><br>
+    <a href="/playlist.m3u" style="color:#28a745; font-weight:bold; font-size:18px; text-decoration:none;">📥 Download M3U Playlist</a>
+</body>
+</html>
