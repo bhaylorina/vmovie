@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Search Results</title>
+    <style>
+        body { font-family: Arial; background:#111; color:#fff; padding:20px; }
+        .result-item { background:#222; padding:15px; margin:10px 0; border-radius:5px; display:flex; justify-content:space-between; align-items:center; }
+        .btn-play { padding:8px 15px; background:#ff9f43; color:#fff; border-radius:5px; text-decoration:none; font-weight:bold; }
+        .btn-save { padding:8px 15px; background:#28a745; color:#fff; border:none; border-radius:5px; cursor:pointer; font-weight:bold; }
+    </style>
+</head>
+<body>
+    <a href="/" style="color:#fff; text-decoration:none;">⬅ Back</a>
+    <h3>Results for: "{{ query }}"</h3>
+    {% if results %}
+        {% for movie in results %}
+        <div class="result-item">
+            <span style="max-width:60%; font-size:14px;">{{ movie.title }}</span>
+            {% if mode == 'auto' %}
+            <div style="display:flex; gap:10px; align-items:center;">
+                <a href="/play?url={{ movie.enc_url }}" target="_blank" class="btn-play">Play</a>
+                <form action="/save" method="post" style="margin:0;">
+                    <input type="hidden" name="title" value="{{ movie.title_q }}">
+                    <input type="hidden" name="url" value="{{ movie.enc_url }}">
+                    <button type="submit" class="btn-save">Save</button>
+                </form>
+            </div>
+            {% else %}
+            <a href="/manual?url={{ movie.enc_url }}&title={{ movie.title_q }}" class="btn-play">Get Links</a>
+            {% endif %}
+        </div>
+        {% endfor %}
+    {% else %}
+        <p style="color:#aaa;">No movies found.</p>
+    {% endif %}
+</body>
+</html>
