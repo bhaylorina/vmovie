@@ -210,7 +210,7 @@ def extract_hubcloud_from_hubdrive(url):
 def convert_pixeldrain_to_direct(url):
     if not url:
         return None
-    url = url.replace('&amp;', '&')
+    url = url.replace("&amp;", "&")
     match = REGEX_GAME_DRIVE.search(url)
     if match:
         file_id = match.group(1)
@@ -524,15 +524,17 @@ def manual_links():
         return f"Error extracting links: {e}", 500
 
 # 🔥 NAYA ROUTE: Manual wale link ko directly play karne ke liye (bypassing get_best_link)
-@app.route('/play_direct')
+@app.route("/play_direct")
 def play_direct():
-    encoded_url = request.args.get('url')
-    if not encoded_url: return "No URL provided", 400
+    encoded_url = request.args.get("url")
+    if not encoded_url:
+        return "No URL provided", 400
 
     encoded_url += "=" * ((4 - len(encoded_url) % 4) % 4)
     try:
         target_url = base64.urlsafe_b64decode(encoded_url.encode()).decode()
-    except Exception as e: return f"Invalid URL: {e}", 400
+    except Exception as e:
+        return f"Invalid URL: {e}", 400
 
     try:
         if "greenmotors" in target_url or "gadgetsweb" in target_url:
@@ -545,30 +547,27 @@ def play_direct():
         if hubcloud:
             if "hubdrive.blog" in hubcloud:
                 hubcloud = extract_hubcloud_from_hubdrive(hubcloud)
-            
+
             if hubcloud:
                 final_link = process_hubcloud(hubcloud)
                 if final_link:
-    html = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta name="referrer" content="no-referrer">
-        <script>
-            window.location.replace("{final_link}");
-        </script>
-    </head>
-    <body></body>
-    </html>
-    """
-    resp = Response(html, mimetype="text/html")
-    resp.headers["Referrer-Policy"] = "no-referrer"
-    return resp
-                
+                    # Agar Pixeldrain link hai toh Download Button wala page khulega (No 403 Error)
+                    if "cdn.pixeldrain.eu.cc/" in final_link:
+                        final_link = final_link.replace(
+                            "cdn.pixeldrain.eu.cc/", "pixeldrain.dev/u/"
+                        )
+
+                    # Agar FSL ya R2 link hai toh bina page khule seedha download start hoga
+                    return redirect(final_link, code=302)
+
         return "Failed to extract final link from this specific URL.", 500
     except Exception as e:
         import traceback
-        return f"Error during extraction: {str(e)}\n{traceback.format_exc()}", 500
+
+        return (
+            f"Error during extraction: {str(e)}\n{traceback.format_exc()}",
+            500,
+        )
 
 @app.route('/save', methods=['POST'])
 def save():
@@ -690,21 +689,7 @@ def play_movie():
             if hubcloud:
                 final_link = process_hubcloud(hubcloud)
                 if final_link:
-    html = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta name="referrer" content="no-referrer">
-        <script>
-            window.location.replace("{final_link}");
-        </script>
-    </head>
-    <body></body>
-    </html>
-    """
-    resp = Response(html, mimetype="text/html")
-    resp.headers["Referrer-Policy"] = "no-referrer"
-    return resp
+                    return redirect(final_link, code=302)
                     
         return "Failed to extract final HubCloud link. (Check Vercel Logs for details)", 500
         
