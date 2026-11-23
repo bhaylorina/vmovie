@@ -646,13 +646,21 @@ def play_movie():
         movie_url = base64.urlsafe_b64decode(encoded_url.encode()).decode()
     except Exception as e:
         return f"Invalid URL encoding: {str(e)}", 400
+        
     try:
-        movie_resp = session.get(movie_url, timeout=15)
-        movie_soup = BeautifulSoup(movie_resp.text, 'html.parser')
-        best_link = get_best_link(movie_soup, movie_url)
-        if not best_link:
-            return "No 1080p link found for this movie", 404
-        print(f"[*] Best Link Found: {best_link}")
+        # 🔥 FIX: Check karo ki kya URL pehle se hi ek direct download link hai (Manual Save se) 🔥
+        if any(domain in movie_url for domain in ["greenmotors", "gadgetsweb", "hubdrive", "hubcdn", "hubcloud"]):
+            best_link = movie_url
+            print(f"[*] Direct link found in saved movies. Bypassing 1080p scraper.")
+        else:
+            # Agar Auto mode se main page save hua hai, tabhi 1080p scrape karo
+            movie_resp = session.get(movie_url, timeout=15)
+            movie_soup = BeautifulSoup(movie_resp.text, 'html.parser')
+            best_link = get_best_link(movie_soup, movie_url)
+            if not best_link:
+                return "No 1080p link found for this movie", 404
+            print(f"[*] Best Link Found: {best_link}")
+
         hubcloud = None
         if "greenmotors" in best_link or "gadgetsweb" in best_link:
             hubcloud = extract_hubcloud_from_gadgets(best_link)
@@ -660,6 +668,7 @@ def play_movie():
             hubcloud = extract_hubcloud_from_hubdrive(best_link)
         else:
             hubcloud = best_link
+            
         if hubcloud:
             if "hubdrive.blog" in hubcloud:
                 print(f"[*] Intermediate Hubdrive found: {hubcloud}")
@@ -668,11 +677,12 @@ def play_movie():
                 final_link = process_hubcloud(hubcloud)
                 if final_link:
                     return redirect(final_link, code=302)
+                    
         return "Failed to extract final HubCloud link. (Check Vercel Logs for details)", 500
+        
     except Exception as e:
         import traceback
         traceback.print_exc()
         return "Error during extraction. Check server logs for details.", 500
-
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=10000, threaded=True)
