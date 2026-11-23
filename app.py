@@ -690,7 +690,21 @@ def play_movie():
             if hubcloud:
                 final_link = process_hubcloud(hubcloud)
                 if final_link:
-                    return redirect(final_link, code=302)
+    html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta name="referrer" content="no-referrer">
+        <script>
+            window.location.replace("{final_link}");
+        </script>
+    </head>
+    <body></body>
+    </html>
+    """
+    resp = Response(html, mimetype="text/html")
+    resp.headers["Referrer-Policy"] = "no-referrer"
+    return resp
                     
         return "Failed to extract final HubCloud link. (Check Vercel Logs for details)", 500
         
