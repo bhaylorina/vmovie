@@ -214,7 +214,8 @@ def convert_pixeldrain_to_direct(url):
     match = REGEX_GAME_DRIVE.search(url)
     if match:
         file_id = match.group(1)
-        direct_url = f"https://cdn.pixeldrain.eu.cc/{file_id}"
+        # 🔥 FIX: Yahan end me ?download add kar diya hai 🔥
+        direct_url = f"https://cdn.pixeldrain.eu.cc/{file_id}?download"
         print(f"      [🔄] Converted PixelDrain (GameDrive): {direct_url}")
         return direct_url
     return url
