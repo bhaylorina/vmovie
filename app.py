@@ -544,8 +544,6 @@ def remove():
         _rtdb_delete(_key(title))
     return redirect("/")
 
-
-def _fetch_category_page(args):
 def _fetch_category_page(args):
     """⚡ Parallel M3U page scraping. skip_filter=True bypasses series filter."""
     cat_url, cat_name, page, host, skip_filter = args
