@@ -550,7 +550,7 @@ def _fetch_category_page(args):
     items = []
     try:
         # Latest = homepage pagination ; baaki = /category/slug/
-        if cat_url == "__latest__":
+        if cat_url == "__A-latest__":
             url = f"{BASE_URL}/" if page == 1 else f"{BASE_URL}/page/{page}/"
         else:
             url = f"{BASE_URL}/category/{cat_url}/page/{page}/"
@@ -591,7 +591,7 @@ def get_playlist():
         categories = [
             ("bollywood-movies",   "Bollywood Movies",   4,  False),
             ("south-hindi-movies", "South Hindi Movies", 4,  False),
-            ("__latest__",         "Latest",             10, True),   # 👈 only diff: filter OFF
+            ("__A-latest__",         "A Latest",             10, false),   # 👈 only diff: filter OFF
         ]
         tasks = [
             (cat_url, cat_name, page, request.host, skip_filter)
