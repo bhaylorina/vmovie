@@ -591,7 +591,7 @@ def get_playlist():
         categories = [
             ("bollywood-movies",   "Bollywood Movies",   4,  False),
             ("south-hindi-movies", "South Hindi Movies", 4,  False),
-            ("__A-latest__",         "A Latest",             10, false),   # 👈 only diff: filter OFF
+            ("__A-latest__",         "A Latest",             10, False),   # 👈 only diff: filter OFF
         ]
         tasks = [
             (cat_url, cat_name, page, request.host, skip_filter)
