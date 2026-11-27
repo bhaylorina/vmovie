@@ -611,7 +611,7 @@ def get_playlist():
                     seen_urls.add(full_url)
                     m3u_temp += f'#EXTINF:-1 tvg-logo="{logo}" group-title="{cat_name}",{t}\nhttps://{request.host}/play?url={safe_b64encode(full_url)}\n'
 
-        m3u_cache["content"], m3u_cache["expiry"] = m3u_temp, now + 3600
+        m3u_cache["content"], m3u_cache["expiry"] = m3u_temp, now + 900
         categories_m3u = m3u_temp
 
     saved = get_valid_saved()
