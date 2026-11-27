@@ -599,16 +599,19 @@ def get_playlist():
             for page in range(1, total_pages + 1)
         ]
 
-        m3u_temp = "#EXTM3U\n"
-        seen_urls = set()
+                m3u_temp = "#EXTM3U\n"
+        seen_by_cat = {}   # 👈 per-category duplicate tracker
 
         with ThreadPoolExecutor(max_workers=12) as executor:
             results = executor.map(_fetch_category_page, tasks)
             for page_items in results:
                 for full_url, logo, cat_name, t in page_items:
-                    if full_url in seen_urls:
+                    # Har category ke liye alag seen set
+                    if cat_name not in seen_by_cat:
+                        seen_by_cat[cat_name] = set()
+                    if full_url in seen_by_cat[cat_name]:
                         continue
-                    seen_urls.add(full_url)
+                    seen_by_cat[cat_name].add(full_url)
                     m3u_temp += f'#EXTINF:-1 tvg-logo="{logo}" group-title="{cat_name}",{t}\nhttps://{request.host}/play?url={safe_b64encode(full_url)}\n'
 
         m3u_cache["content"], m3u_cache["expiry"] = m3u_temp, now + 900
