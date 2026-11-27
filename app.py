@@ -597,10 +597,10 @@ def get_playlist():
             (cat_url, cat_name, page, request.host, skip_filter)
             for cat_url, cat_name, total_pages, skip_filter in categories
             for page in range(1, total_pages + 1)
-        ]
+                ]
 
-                m3u_temp = "#EXTM3U\n"
-        seen_by_cat = {}   # 👈 per-category duplicate tracker
+        m3u_temp = "#EXTM3U\n"
+        seen_by_cat = {}   # per-category duplicate tracker
 
         with ThreadPoolExecutor(max_workers=12) as executor:
             results = executor.map(_fetch_category_page, tasks)
