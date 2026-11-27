@@ -546,13 +546,18 @@ def remove():
 
 
 def _fetch_category_page(args):
-    """⚡ Helper for parallel M3U page scraping (Filters out all Seasons/Series)"""
-    cat_url, cat_name, page, host = args
+def _fetch_category_page(args):
+    """⚡ Parallel M3U page scraping. skip_filter=True bypasses series filter."""
+    cat_url, cat_name, page, host, skip_filter = args
     items = []
     try:
-        resp = session.get(
-            f"{BASE_URL}/category/{cat_url}/page/{page}/", timeout=10
-        )
+        # Latest = homepage pagination ; baaki = /category/slug/
+        if cat_url == "__latest__":
+            url = f"{BASE_URL}/" if page == 1 else f"{BASE_URL}/page/{page}/"
+        else:
+            url = f"{BASE_URL}/category/{cat_url}/page/{page}/"
+
+        resp = session.get(url, timeout=10)
         if resp.status_code == 200:
             soup = BeautifulSoup(resp.text, "lxml")
             for card in soup.find_all("li", class_="thumb"):
@@ -564,10 +569,10 @@ def _fetch_category_page(args):
                 if not t or len(t) < 5:
                     continue
 
-                # 🔥 FILTER: Skip all Seasons, Episodes, Shows, and Series in M3U folders
-                if REGEX_SERIES_EXCLUDE.search(
-                    t
-                ) or REGEX_SERIES_EXCLUDE.search(h):
+                # 🔥 Filter ONLY when skip_filter=False (Latest me bypass)
+                if not skip_filter and (
+                    REGEX_SERIES_EXCLUDE.search(t) or REGEX_SERIES_EXCLUDE.search(h)
+                ):
                     continue
 
                 logo = img_tag["src"] if img_tag and img_tag.get("src") else ""
@@ -577,7 +582,6 @@ def _fetch_category_page(args):
         pass
     return items
 
-
 @app.route("/playlist.m3u")
 def get_playlist():
     global m3u_cache
@@ -585,20 +589,22 @@ def get_playlist():
     if m3u_cache["content"] and now < m3u_cache["expiry"]:
         categories_m3u = m3u_cache["content"]
     else:
+        # (cat_url, cat_name, pages, skip_filter)
         categories = [
-            ("bollywood-movies", "Bollywood Movies"),
-            ("south-hindi-movies", "South Hindi Movies"),
+            ("bollywood-movies",   "Bollywood Movies",   4,  False),
+            ("south-hindi-movies", "South Hindi Movies", 4,  False),
+            ("__latest__",         "Latest",             10, True),   # 👈 only diff: filter OFF
         ]
         tasks = [
-            (cat_url, cat_name, page, request.host)
-            for cat_url, cat_name in categories
-            for page in range(1, 5)
+            (cat_url, cat_name, page, request.host, skip_filter)
+            for cat_url, cat_name, total_pages, skip_filter in categories
+            for page in range(1, total_pages + 1)
         ]
 
         m3u_temp = "#EXTM3U\n"
         seen_urls = set()
 
-        with ThreadPoolExecutor(max_workers=8) as executor:
+        with ThreadPoolExecutor(max_workers=12) as executor:
             results = executor.map(_fetch_category_page, tasks)
             for page_items in results:
                 for full_url, logo, cat_name, t in page_items:
@@ -618,7 +624,6 @@ def get_playlist():
         ]
     )
     return Response(categories_m3u + saved_part, mimetype="audio/x-mpegurl")
-
 
 @app.route("/play")
 def play_movie():
